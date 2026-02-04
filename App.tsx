@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
   HardHat, 
@@ -10,13 +10,13 @@ import {
   Menu,
   X,
   Settings as SettingsIcon,
-  Database,
   CloudCheck,
   CloudOff,
   RefreshCcw,
-  AlertCircle
+  LogOut,
+  User as UserIcon
 } from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, User } from '@supabase/supabase-js';
 import { ConstructionState, ViewType, Contractor, Project, Certificate, Payment } from './types';
 import Dashboard from './components/Dashboard';
 import ProjectManager from './components/ProjectManager';
@@ -25,12 +25,12 @@ import FinancialTracking from './components/FinancialTracking';
 import NecessaryPayments from './components/NecessaryPayments';
 import AIAssistant from './components/AIAssistant';
 import BackupSettings from './components/BackupSettings';
+import Auth from './components/Auth';
 
 const SUPABASE_URL = 'https://jlczllsgnpitgvkdxqnc.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpsY3psbHNnbnBpdGd2a2R4cW5jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMDY5MTgsImV4cCI6MjA4NTc4MjkxOH0.j7kjimXlXqXizGeVoYFX6upJO0JKTbILdp3lETgClYs';
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Mapeo robusto: vincula la clave del estado con el nombre de la tabla DB y sus transformadores
 const dbRegistry = {
   contractors: {
     table: 'contractors',
@@ -55,16 +55,38 @@ const dbRegistry = {
 };
 
 const App: React.FC = () => {
-  const [state, setState] = useState<ConstructionState>(() => {
-    const local = localStorage.getItem('obraapp_v1_data');
-    return local ? JSON.parse(local) : { contractors: [], projects: [], certificates: [], payments: [] };
-  });
-
+  const [session, setSession] = useState<any>(null);
+  const [profile, setProfile] = useState<any>(null);
+  const [state, setState] = useState<ConstructionState>({ contractors: [], projects: [], certificates: [], payments: [] });
   const [activeView, setActiveView] = useState<ViewType>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [dbStatus, setDbStatus] = useState<'syncing' | 'connected' | 'error'>('syncing');
 
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session) fetchProfile(session.user.id);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session) fetchProfile(session.user.id);
+      else {
+        setProfile(null);
+        setState({ contractors: [], projects: [], certificates: [], payments: [] });
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const fetchProfile = async (uid: string) => {
+    const { data } = await supabase.from('profiles').select('*').eq('id', uid).single();
+    if (data) setProfile(data);
+  };
+
   const loadFromCloud = async () => {
+    if (!session) return;
     setDbStatus('syncing');
     try {
       const [
@@ -88,48 +110,34 @@ const App: React.FC = () => {
     }
   };
 
-  useEffect(() => { loadFromCloud(); }, []);
+  useEffect(() => {
+    if (session) loadFromCloud();
+  }, [session]);
 
-  // Función de borrado sincronizado mejorada
   const handleDelete = async (type: keyof ConstructionState, id: string) => {
     const config = dbRegistry[type];
-    if (!config) {
-      console.error("Tipo de entidad no reconocido para borrado:", type);
-      return;
-    }
+    if (!config) return;
 
-    console.log(`Intentando borrar en tabla ${config.table} el ID: ${id}`);
     setDbStatus('syncing');
-    
     try {
       const { error } = await supabase.from(config.table).delete().eq('id', id);
-      
       if (error) {
-        console.error("Error Supabase Delete:", error);
-        if (error.code === '23503') {
-          alert("Restricción de Integridad: No puedes borrar este registro porque hay otros datos que dependen de él. Por ejemplo, borra primero los pagos de una obra antes de borrar la obra.");
-        } else {
-          alert(`Error al borrar en la nube: ${error.message}`);
-        }
+        alert(error.code === '23503' ? "Debe borrar primero los datos vinculados." : error.message);
         setDbStatus('error');
         return;
       }
-
-      // ÉXITO: Actualizamos el estado local eliminando el item
       setState(prev => ({
         ...prev,
         [type]: (prev[type] as any[]).filter((item: any) => item.id !== id)
       }));
       setDbStatus('connected');
-      console.log("Borrado exitoso en nube y local.");
     } catch (e) {
-      console.error("Excepción en handleDelete:", e);
       setDbStatus('error');
     }
   };
 
   useEffect(() => {
-    localStorage.setItem('obraapp_v1_data', JSON.stringify(state));
+    if (!session) return;
     const syncToCloud = async () => {
       try {
         if (state.contractors.length > 0) await supabase.from('contractors').upsert(state.contractors.map(dbRegistry.contractors.toDB));
@@ -141,20 +149,9 @@ const App: React.FC = () => {
     };
     const timer = setTimeout(syncToCloud, 2000);
     return () => clearTimeout(timer);
-  }, [state]);
+  }, [state, session]);
 
-  const renderContent = () => {
-    switch(activeView) {
-      case 'dashboard': return <Dashboard state={state} />;
-      case 'projects': return <ProjectManager state={state} setState={setState} onDelete={(id) => handleDelete('projects', id)} />;
-      case 'contractors': return <ContractorManager state={state} setState={setState} onDelete={(id) => handleDelete('contractors', id)} />;
-      case 'payments': return <FinancialTracking state={state} setState={setState} onDelete={(type, id) => handleDelete(type as any, id)} />;
-      case 'summary': return <NecessaryPayments state={state} />;
-      case 'ai': return <AIAssistant state={state} />;
-      case 'settings': return <BackupSettings state={state} setState={setState} />;
-      default: return <Dashboard state={state} />;
-    }
-  };
+  if (!session) return <Auth />;
 
   return (
     <div className="flex h-screen bg-slate-50 text-slate-900 font-sans overflow-hidden">
@@ -186,25 +183,36 @@ const App: React.FC = () => {
             {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
           
-          <div className="flex items-center gap-4">
-             <button 
-               onClick={loadFromCloud}
-               className={`flex items-center gap-2 px-4 py-1.5 rounded-full border transition-all ${
-               dbStatus === 'connected' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 
-               dbStatus === 'error' ? 'bg-red-50 text-red-700 border-red-100' : 'bg-blue-50 text-blue-700 border-blue-100'
-             }`}>
-                {dbStatus === 'connected' ? <CloudCheck size={14} /> : 
-                 dbStatus === 'error' ? <CloudOff size={14} /> : <RefreshCcw size={14} className="animate-spin" />}
-                <span className="text-[10px] font-black uppercase tracking-wider">
-                  {dbStatus === 'connected' ? 'Nube OK' : dbStatus === 'error' ? 'Error Nube' : 'Sincronizando...'}
-                </span>
-             </button>
-             <div className="w-10 h-10 bg-slate-900 text-white rounded-xl flex items-center justify-center font-bold text-sm shadow-lg">AD</div>
+          <div className="flex items-center gap-6">
+             <div className="flex items-center gap-3 pr-6 border-r border-slate-100">
+               <div className="text-right">
+                 <p className="text-xs font-black text-slate-800 leading-none">{profile?.full_name || 'Cargando...'}</p>
+                 <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mt-1">{profile?.position || 'Usuario'}</p>
+               </div>
+               <div className="w-9 h-9 bg-slate-900 text-white rounded-xl flex items-center justify-center font-bold text-xs shadow-lg">
+                 {profile?.full_name?.charAt(0) || 'U'}
+               </div>
+             </div>
+
+             <div className="flex items-center gap-2">
+               <button onClick={loadFromCloud} className="p-2 hover:bg-slate-50 rounded-xl text-slate-400">
+                 {dbStatus === 'syncing' ? <RefreshCcw size={18} className="animate-spin text-blue-500" /> : <CloudCheck size={18} className="text-emerald-500" />}
+               </button>
+               <button onClick={() => supabase.auth.signOut()} className="p-2 hover:bg-red-50 text-red-500 rounded-xl transition-colors" title="Cerrar Sesión">
+                 <LogOut size={18} />
+               </button>
+             </div>
           </div>
         </header>
 
         <section className="flex-1 overflow-y-auto p-8 bg-[#f8fafc]">
-          {renderContent()}
+          {activeView === 'dashboard' && <Dashboard state={state} />}
+          {activeView === 'projects' && <ProjectManager state={state} setState={setState} onDelete={(id) => handleDelete('projects', id)} />}
+          {activeView === 'contractors' && <ContractorManager state={state} setState={setState} onDelete={(id) => handleDelete('contractors', id)} />}
+          {activeView === 'payments' && <FinancialTracking state={state} setState={setState} onDelete={(type, id) => handleDelete(type as any, id)} />}
+          {activeView === 'summary' && <NecessaryPayments state={state} />}
+          {activeView === 'ai' && <AIAssistant state={state} />}
+          {activeView === 'settings' && <BackupSettings state={state} setState={setState} />}
         </section>
       </main>
     </div>
