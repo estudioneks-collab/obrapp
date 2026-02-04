@@ -30,23 +30,24 @@ const SUPABASE_URL = 'https://jlczllsgnpitgvkdxqnc.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpsY3psbHNnbnBpdGd2a2R4cW5jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMDY5MTgsImV4cCI6MjA4NTc4MjkxOH0.j7kjimXlXqXizGeVoYFX6upJO0JKTbILdp3lETgClYs';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const map = {
-  contractor: {
+// Mapeo robusto: vincula la clave del estado con el nombre de la tabla DB y sus transformadores
+const dbRegistry = {
+  contractors: {
     table: 'contractors',
     toDB: (c: Contractor) => ({ id: c.id, name: c.name, tax_id: c.taxId, contact: c.contact }),
     fromDB: (c: any): Contractor => ({ id: c.id, name: c.name, taxId: c.tax_id, contact: c.contact })
   },
-  project: {
+  projects: {
     table: 'projects',
     toDB: (p: Project) => ({ id: p.id, name: p.name, file_number: p.fileNumber, budget: p.budget, contractor_id: p.contractorId, start_date: p.startDate, status: p.status }),
     fromDB: (p: any): Project => ({ id: p.id, name: p.name, fileNumber: p.file_number, budget: p.budget, contractorId: p.contractor_id, startDate: p.start_date, status: p.status })
   },
-  certificate: {
+  certificates: {
     table: 'certificates',
     toDB: (c: Certificate) => ({ id: c.id, project_id: c.projectId, period: c.period, physical_progress: c.physicalProgress, financial_amount: c.financialAmount, timestamp: c.timestamp }),
     fromDB: (c: any): Certificate => ({ id: c.id, projectId: c.project_id, period: c.period, physicalProgress: c.physical_progress, financialAmount: c.financial_amount, timestamp: c.timestamp })
   },
-  payment: {
+  payments: {
     table: 'payments',
     toDB: (p: Payment) => ({ id: p.id, project_id: p.projectId, amount: p.amount, payment_date: p.date, reference: p.reference }),
     fromDB: (p: any): Payment => ({ id: p.id, projectId: p.project_id, amount: p.amount, date: p.payment_date, reference: p.reference })
@@ -76,10 +77,10 @@ const App: React.FC = () => {
       ]);
 
       setState({
-        contractors: (c || []).map(map.contractor.fromDB),
-        projects: (pr || []).map(map.project.fromDB),
-        certificates: (ce || []).map(map.certificate.fromDB),
-        payments: (pa || []).map(map.payment.fromDB)
+        contractors: (c || []).map(dbRegistry.contractors.fromDB),
+        projects: (pr || []).map(dbRegistry.projects.fromDB),
+        certificates: (ce || []).map(dbRegistry.certificates.fromDB),
+        payments: (pa || []).map(dbRegistry.payments.fromDB)
       });
       setDbStatus('connected');
     } catch (err) {
@@ -89,18 +90,24 @@ const App: React.FC = () => {
 
   useEffect(() => { loadFromCloud(); }, []);
 
-  // Función de borrado sincronizado
+  // Función de borrado sincronizado mejorada
   const handleDelete = async (type: keyof ConstructionState, id: string) => {
-    const tableName = map[type.slice(0, -1) as keyof typeof map]?.table;
-    if (!tableName) return;
+    const config = dbRegistry[type];
+    if (!config) {
+      console.error("Tipo de entidad no reconocido para borrado:", type);
+      return;
+    }
 
+    console.log(`Intentando borrar en tabla ${config.table} el ID: ${id}`);
     setDbStatus('syncing');
+    
     try {
-      const { error } = await supabase.from(tableName).delete().eq('id', id);
+      const { error } = await supabase.from(config.table).delete().eq('id', id);
       
       if (error) {
+        console.error("Error Supabase Delete:", error);
         if (error.code === '23503') {
-          alert("No se puede eliminar: Este registro tiene datos vinculados (ej: una obra tiene pagos o certificados cargados). Borre primero los datos dependientes.");
+          alert("Restricción de Integridad: No puedes borrar este registro porque hay otros datos que dependen de él. Por ejemplo, borra primero los pagos de una obra antes de borrar la obra.");
         } else {
           alert(`Error al borrar en la nube: ${error.message}`);
         }
@@ -108,13 +115,15 @@ const App: React.FC = () => {
         return;
       }
 
-      // Si se borró en la nube con éxito, actualizamos localmente
+      // ÉXITO: Actualizamos el estado local eliminando el item
       setState(prev => ({
         ...prev,
         [type]: (prev[type] as any[]).filter((item: any) => item.id !== id)
       }));
       setDbStatus('connected');
+      console.log("Borrado exitoso en nube y local.");
     } catch (e) {
+      console.error("Excepción en handleDelete:", e);
       setDbStatus('error');
     }
   };
@@ -123,10 +132,10 @@ const App: React.FC = () => {
     localStorage.setItem('obraapp_v1_data', JSON.stringify(state));
     const syncToCloud = async () => {
       try {
-        if (state.contractors.length > 0) await supabase.from('contractors').upsert(state.contractors.map(map.contractor.toDB));
-        if (state.projects.length > 0) await supabase.from('projects').upsert(state.projects.map(map.project.toDB));
-        if (state.certificates.length > 0) await supabase.from('certificates').upsert(state.certificates.map(map.certificate.toDB));
-        if (state.payments.length > 0) await supabase.from('payments').upsert(state.payments.map(map.payment.toDB));
+        if (state.contractors.length > 0) await supabase.from('contractors').upsert(state.contractors.map(dbRegistry.contractors.toDB));
+        if (state.projects.length > 0) await supabase.from('projects').upsert(state.projects.map(dbRegistry.projects.toDB));
+        if (state.certificates.length > 0) await supabase.from('certificates').upsert(state.certificates.map(dbRegistry.certificates.toDB));
+        if (state.payments.length > 0) await supabase.from('payments').upsert(state.payments.map(dbRegistry.payments.toDB));
         setDbStatus('connected');
       } catch (e) { setDbStatus('error'); }
     };

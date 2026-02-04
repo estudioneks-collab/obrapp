@@ -42,7 +42,7 @@ const FinancialTracking: React.FC<FinancialTrackingProps> = ({ state, setState, 
     setIsModalOpen(false);
   };
 
-  const removeItem = (type: string, id: string) => {
+  const removeItem = (type: 'certificates' | 'payments', id: string) => {
     if (confirm(`¿Seguro que desea eliminar este ${type === 'certificates' ? 'certificado' : 'pago'}?`)) {
       if (onDelete) onDelete(type, id);
     }
