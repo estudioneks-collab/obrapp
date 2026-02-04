@@ -54,9 +54,8 @@ const Auth: React.FC = () => {
       console.error("Auth Error:", err);
       let message = err.message || "Ocurrió un error inesperado";
       
-      // Manejo amigable del error de rate limit mostrado en la captura
       if (message.includes("email rate limit exceeded")) {
-        message = "Límite de envíos excedido. Supabase permite 3 correos por hora. Espera un momento o aumenta el límite en Authentication -> Rate Limits en tu panel de Supabase.";
+        message = "Límite de envíos excedido. Supabase permite 3 correos por hora. Espera un momento o aumenta el límite en Authentication → Rate Limits en tu panel de Supabase.";
       }
       
       setError(message);
@@ -163,7 +162,7 @@ const Auth: React.FC = () => {
                 </div>
                 {error.includes("limit exceeded") && (
                   <div className="mt-1 p-2.5 bg-white/60 rounded-xl text-[9px] uppercase tracking-wider text-amber-700 border border-amber-100 shadow-sm">
-                    <strong>Tip Profesional:</strong> Ve a Supabase -> Settings -> Auth -> Rate Limits y aumenta el límite de correos.
+                    <strong>Tip Profesional:</strong> Ve a Supabase → Settings → Auth → Rate Limits y aumenta el límite de correos.
                   </div>
                 )}
               </div>
