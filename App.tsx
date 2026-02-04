@@ -259,7 +259,7 @@ const App: React.FC = () => {
           {activeView === 'reports' && <Reports state={state} profile={profile} />}
           {activeView === 'summary' && <NecessaryPayments state={state} />}
           {activeView === 'ai' && <AIAssistant state={state} />}
-          {activeView === 'settings' && <BackupSettings state={state} setState={setState} profile={profile} setProfile={setProfile} />}
+          {activeView === 'settings' && <BackupSettings state={state} setState={setState} profile={profile} setProfile={setProfile} session={session} />}
         </section>
       </main>
     </div>
