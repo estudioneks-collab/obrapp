@@ -5,12 +5,16 @@ import { TrendingUp, Wallet, AlertCircle, CheckCircle2, DollarSign } from 'lucid
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell 
 } from 'recharts';
+import { formatCurrency } from '../App';
 
 const Dashboard: React.FC<{ state: ConstructionState }> = ({ state }) => {
   const totalBudget = state.projects.reduce((acc, p) => acc + p.budget, 0);
   const totalCertificated = state.certificates.reduce((acc, c) => acc + c.financialAmount, 0);
+  const totalAmortized = state.certificates.reduce((acc, c) => acc + c.advanceAmortization, 0);
   const totalPaid = state.payments.reduce((acc, p) => acc + p.amount, 0);
-  const totalDebt = totalCertificated - totalPaid;
+  
+  // Deuda = (Certificado - Descuento Anticipo) - Pagado
+  const totalDebt = (totalCertificated - totalAmortized) - totalPaid;
 
   const chartData = state.projects.map(p => {
     const certs = state.certificates.filter(c => c.projectId === p.id);
@@ -33,28 +37,28 @@ const Dashboard: React.FC<{ state: ConstructionState }> = ({ state }) => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <KPI 
           label="Presupuesto Total" 
-          value={`$${totalBudget.toLocaleString()}`} 
+          value={`$${formatCurrency(totalBudget)}`} 
           sub="Obras registradas" 
           icon={<DollarSign className="text-blue-600" />} 
           color="bg-blue-50"
         />
         <KPI 
           label="Ejecución (Certificado)" 
-          value={`$${totalCertificated.toLocaleString()}`} 
-          sub={`${((totalCertificated/totalBudget)*100 || 0).toFixed(1)}% del total`} 
+          value={`$${formatCurrency(totalCertificated)}`} 
+          sub={`${((totalCertificated/totalBudget)*100 || 0).toLocaleString('es-AR', {maximumFractionDigits: 2})}% del total`} 
           icon={<TrendingUp className="text-amber-600" />} 
           color="bg-amber-50"
         />
         <KPI 
           label="Pagado" 
-          value={`$${totalPaid.toLocaleString()}`} 
+          value={`$${formatCurrency(totalPaid)}`} 
           sub="Transferencias realizadas" 
           icon={<CheckCircle2 className="text-emerald-600" />} 
           color="bg-emerald-50"
         />
         <KPI 
           label="Deuda Pendiente" 
-          value={`$${totalDebt.toLocaleString()}`} 
+          value={`$${formatCurrency(totalDebt)}`} 
           sub="Partidas por cancelar" 
           icon={<AlertCircle className="text-red-600" />} 
           color="bg-red-50"
@@ -62,7 +66,6 @@ const Dashboard: React.FC<{ state: ConstructionState }> = ({ state }) => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main Chart */}
         <div className="lg:col-span-2 bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm">
           <h3 className="text-lg font-bold text-slate-800 mb-6">Comparativa de Ejecución por Obra</h3>
           <div className="h-80">
@@ -74,6 +77,7 @@ const Dashboard: React.FC<{ state: ConstructionState }> = ({ state }) => {
                 <Tooltip 
                   cursor={{fill: '#f8fafc'}}
                   contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
+                  formatter={(value: number) => `$${formatCurrency(value)}`}
                 />
                 <Bar dataKey="presupuesto" fill="#e2e8f0" radius={[4, 4, 0, 0]} name="Presupuesto" />
                 <Bar dataKey="ejecutado" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Ejecutado" />
@@ -82,7 +86,6 @@ const Dashboard: React.FC<{ state: ConstructionState }> = ({ state }) => {
           </div>
         </div>
 
-        {/* Quick List */}
         <div className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm">
           <h3 className="text-lg font-bold text-slate-800 mb-6">Últimos Movimientos</h3>
           <div className="space-y-4">
@@ -98,7 +101,7 @@ const Dashboard: React.FC<{ state: ConstructionState }> = ({ state }) => {
                     <p className="text-[10px] text-slate-400 font-bold uppercase">{p.date}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-black text-slate-800">${p.amount.toLocaleString()}</p>
+                    <p className="text-sm font-black text-slate-800">${formatCurrency(p.amount)}</p>
                   </div>
                 </div>
               );

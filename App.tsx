@@ -14,7 +14,8 @@ import {
   CloudOff,
   RefreshCcw,
   LogOut,
-  User as UserIcon
+  User as UserIcon,
+  FileText
 } from 'lucide-react';
 import { createClient, User } from '@supabase/supabase-js';
 import { ConstructionState, ViewType, Contractor, Project, Certificate, Payment } from './types';
@@ -26,10 +27,19 @@ import NecessaryPayments from './components/NecessaryPayments';
 import AIAssistant from './components/AIAssistant';
 import BackupSettings from './components/BackupSettings';
 import Auth from './components/Auth';
+import Reports from './components/Reports';
 
 const SUPABASE_URL = 'https://jlczllsgnpitgvkdxqnc.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpsY3psbHNnbnBpdGd2a2R4cW5jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMDY5MTgsImV4cCI6MjA4NTc4MjkxOH0.j7kjimXlXqXizGeVoYFX6upJO0JKTbILdp3lETgClYs';
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// Utility para formatear números con coma y 2 decimales
+export const formatCurrency = (amount: number) => {
+  return amount.toLocaleString('es-AR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+};
 
 const dbRegistry = {
   contractors: {
@@ -39,13 +49,49 @@ const dbRegistry = {
   },
   projects: {
     table: 'projects',
-    toDB: (p: Project) => ({ id: p.id, name: p.name, file_number: p.fileNumber, budget: p.budget, contractor_id: p.contractorId, start_date: p.startDate, status: p.status }),
-    fromDB: (p: any): Project => ({ id: p.id, name: p.name, fileNumber: p.file_number, budget: p.budget, contractorId: p.contractor_id, startDate: p.start_date, status: p.status })
+    toDB: (p: Project) => ({ 
+      id: p.id, 
+      name: p.name, 
+      file_number: p.fileNumber, 
+      budget: p.budget, 
+      advance_amount: p.advanceAmount,
+      advance_recovery_rate: p.advanceRecoveryRate,
+      contractor_id: p.contractorId, 
+      start_date: p.startDate, 
+      status: p.status 
+    }),
+    fromDB: (p: any): Project => ({ 
+      id: p.id, 
+      name: p.name, 
+      fileNumber: p.file_number, 
+      budget: p.budget, 
+      advanceAmount: p.advance_amount || 0,
+      advanceRecoveryRate: p.advance_recovery_rate || 0,
+      contractorId: p.contractor_id, 
+      startDate: p.start_date, 
+      status: p.status 
+    })
   },
   certificates: {
     table: 'certificates',
-    toDB: (c: Certificate) => ({ id: c.id, project_id: c.projectId, period: c.period, physical_progress: c.physicalProgress, financial_amount: c.financialAmount, timestamp: c.timestamp }),
-    fromDB: (c: any): Certificate => ({ id: c.id, projectId: c.project_id, period: c.period, physicalProgress: c.physical_progress, financialAmount: c.financial_amount, timestamp: c.timestamp })
+    toDB: (c: Certificate) => ({ 
+      id: c.id, 
+      project_id: c.projectId, 
+      period: c.period, 
+      physical_progress: c.physicalProgress, 
+      financial_amount: c.financialAmount, 
+      advance_amortization: c.advanceAmortization,
+      timestamp: c.timestamp 
+    }),
+    fromDB: (c: any): Certificate => ({ 
+      id: c.id, 
+      projectId: c.project_id, 
+      period: c.period, 
+      physicalProgress: c.physical_progress, 
+      financialAmount: c.financial_amount, 
+      advanceAmortization: c.advance_amortization || 0,
+      timestamp: c.timestamp 
+    })
   },
   payments: {
     table: 'payments',
@@ -58,7 +104,7 @@ const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [state, setState] = useState<ConstructionState>({ contractors: [], projects: [], certificates: [], payments: [] });
-  const [activeView, setActiveView] = useState<ViewType>('dashboard');
+  const [activeView, setActiveView] = useState<ViewType | 'reports'>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [dbStatus, setDbStatus] = useState<'syncing' | 'connected' | 'error'>('syncing');
 
@@ -169,7 +215,8 @@ const App: React.FC = () => {
           <SidebarItem icon={<FileStack size={20} />} label="Obras" active={activeView === 'projects'} onClick={() => setActiveView('projects')} collapsed={!isSidebarOpen} />
           <SidebarItem icon={<HardHat size={20} />} label="Contratistas" active={activeView === 'contractors'} onClick={() => setActiveView('contractors')} collapsed={!isSidebarOpen} />
           <SidebarItem icon={<Wallet size={20} />} label="Pagos" active={activeView === 'payments'} onClick={() => setActiveView('payments')} collapsed={!isSidebarOpen} />
-          <SidebarItem icon={<PieChart size={20} />} label="Partidas" active={activeView === 'summary'} onClick={() => setActiveView('summary')} collapsed={!isSidebarOpen} />
+          <SidebarItem icon={<FileText size={20} />} label="Reportes PDF" active={activeView === 'reports'} onClick={() => setActiveView('reports')} collapsed={!isSidebarOpen} />
+          <SidebarItem icon={<PieChart size={20} />} label="Deuda Neta" active={activeView === 'summary'} onClick={() => setActiveView('summary')} collapsed={!isSidebarOpen} />
           <SidebarItem icon={<BrainCircuit size={20} />} label="Auditor IA" active={activeView === 'ai'} onClick={() => setActiveView('ai')} collapsed={!isSidebarOpen} />
         </nav>
         <div className="p-4 mt-auto border-t border-white/10">
@@ -210,6 +257,7 @@ const App: React.FC = () => {
           {activeView === 'projects' && <ProjectManager state={state} setState={setState} onDelete={(id) => handleDelete('projects', id)} />}
           {activeView === 'contractors' && <ContractorManager state={state} setState={setState} onDelete={(id) => handleDelete('contractors', id)} />}
           {activeView === 'payments' && <FinancialTracking state={state} setState={setState} onDelete={(type, id) => handleDelete(type as any, id)} />}
+          {activeView === 'reports' && <Reports state={state} />}
           {activeView === 'summary' && <NecessaryPayments state={state} />}
           {activeView === 'ai' && <AIAssistant state={state} />}
           {activeView === 'settings' && <BackupSettings state={state} setState={setState} />}

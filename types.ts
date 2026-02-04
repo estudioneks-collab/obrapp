@@ -13,12 +13,13 @@ export interface Project {
   name: string;
   fileNumber: string;
   budget: number;
+  advanceAmount: number; // Monto inicial del anticipo
+  advanceRecoveryRate: number; // Porcentaje de descuento en cada certificado
   contractorId: string;
   startDate: string;
   status: 'active' | 'paused' | 'completed';
 }
 
-// Added WorkItem type to fix import errors in WorkItemsList.tsx
 export interface WorkItem {
   id: string;
   code: string;
@@ -34,7 +35,6 @@ export interface WorkItem {
   status: 'pending' | 'in_progress' | 'completed' | 'delayed';
 }
 
-// Added ProjectData type to fix import errors in WorkItemsList.tsx and Reports.tsx
 export interface ProjectData {
   projectName: string;
   client: string;
@@ -48,6 +48,7 @@ export interface Certificate {
   period: string;
   physicalProgress: number;
   financialAmount: number;
+  advanceAmortization: number; // Monto descontado del anticipo en este periodo
   timestamp: string;
 }
 
