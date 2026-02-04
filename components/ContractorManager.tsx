@@ -6,9 +6,10 @@ import { Plus, Trash2, HardHat, Phone, Hash, X } from 'lucide-react';
 interface ContractorManagerProps {
   state: ConstructionState;
   setState: React.Dispatch<React.SetStateAction<ConstructionState>>;
+  onDelete?: (id: string) => void;
 }
 
-const ContractorManager: React.FC<ContractorManagerProps> = ({ state, setState }) => {
+const ContractorManager: React.FC<ContractorManagerProps> = ({ state, setState, onDelete }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const handleAdd = (e: React.FormEvent<HTMLFormElement>) => {
@@ -25,8 +26,9 @@ const ContractorManager: React.FC<ContractorManagerProps> = ({ state, setState }
   };
 
   const removeContractor = (id: string) => {
-    if(confirm('¿Desea eliminar esta empresa?')) {
-      setState(prev => ({ ...prev, contractors: prev.contractors.filter(c => c.id !== id) }));
+    if(confirm('¿Desea eliminar esta empresa de la base de datos?')) {
+      if (onDelete) onDelete(id);
+      else setState(prev => ({ ...prev, contractors: prev.contractors.filter(c => c.id !== id) }));
     }
   };
 

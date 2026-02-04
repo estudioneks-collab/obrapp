@@ -1,14 +1,15 @@
 
 import React, { useState } from 'react';
 import { ConstructionState, Certificate, Payment } from '../types';
-import { Wallet, Plus, ArrowUpRight, ArrowDownRight, CheckCircle2, FileText, X } from 'lucide-react';
+import { Wallet, Plus, ArrowUpRight, ArrowDownRight, CheckCircle2, FileText, X, Trash2 } from 'lucide-react';
 
 interface FinancialTrackingProps {
   state: ConstructionState;
   setState: React.Dispatch<React.SetStateAction<ConstructionState>>;
+  onDelete?: (type: string, id: string) => void;
 }
 
-const FinancialTracking: React.FC<FinancialTrackingProps> = ({ state, setState }) => {
+const FinancialTracking: React.FC<FinancialTrackingProps> = ({ state, setState, onDelete }) => {
   const [activeTab, setActiveTab] = useState<'certs' | 'payments'>('certs');
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -39,6 +40,12 @@ const FinancialTracking: React.FC<FinancialTrackingProps> = ({ state, setState }
     };
     setState(prev => ({ ...prev, payments: [...prev.payments, newPayment] }));
     setIsModalOpen(false);
+  };
+
+  const removeItem = (type: string, id: string) => {
+    if (confirm(`¿Seguro que desea eliminar este ${type === 'certificates' ? 'certificado' : 'pago'}?`)) {
+      if (onDelete) onDelete(type, id);
+    }
   };
 
   return (
@@ -80,7 +87,7 @@ const FinancialTracking: React.FC<FinancialTrackingProps> = ({ state, setState }
                 <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Periodo</th>
                 <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Avance Físico</th>
                 <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Monto Certificado</th>
-                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Acciones</th>
+                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -104,10 +111,12 @@ const FinancialTracking: React.FC<FinancialTrackingProps> = ({ state, setState }
                     <td className="px-8 py-5 text-right font-black text-slate-800 text-sm">
                       ${c.financialAmount.toLocaleString()}
                     </td>
-                    <td className="px-8 py-5">
-                      <button className="text-slate-300 hover:text-blue-600 transition-colors">
-                        <FileText size={18} />
-                      </button>
+                    <td className="px-8 py-5 text-right">
+                      <div className="flex justify-end gap-2">
+                        <button onClick={() => removeItem('certificates', c.id)} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -127,7 +136,7 @@ const FinancialTracking: React.FC<FinancialTrackingProps> = ({ state, setState }
                 <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Obra / Destino</th>
                 <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Referencia</th>
                 <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Monto Pagado</th>
-                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Estado</th>
+                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -143,10 +152,10 @@ const FinancialTracking: React.FC<FinancialTrackingProps> = ({ state, setState }
                     <td className="px-8 py-5 text-right font-black text-emerald-600 text-sm">
                       ${p.amount.toLocaleString()}
                     </td>
-                    <td className="px-8 py-5">
-                      <div className="flex justify-center">
-                        <CheckCircle2 size={18} className="text-emerald-500" />
-                      </div>
+                    <td className="px-8 py-5 text-right">
+                       <button onClick={() => removeItem('payments', p.id)} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
+                        <Trash2 size={16} />
+                      </button>
                     </td>
                   </tr>
                 );

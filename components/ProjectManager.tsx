@@ -1,14 +1,15 @@
 
 import React, { useState } from 'react';
 import { ConstructionState, Project } from '../types';
-import { Plus, Search, FileText, ChevronRight, Hash, X } from 'lucide-react';
+import { Plus, Search, FileText, ChevronRight, Hash, X, Trash2 } from 'lucide-react';
 
 interface ProjectManagerProps {
   state: ConstructionState;
   setState: React.Dispatch<React.SetStateAction<ConstructionState>>;
+  onDelete?: (id: string) => void;
 }
 
-const ProjectManager: React.FC<ProjectManagerProps> = ({ state, setState }) => {
+const ProjectManager: React.FC<ProjectManagerProps> = ({ state, setState, onDelete }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -26,6 +27,12 @@ const ProjectManager: React.FC<ProjectManagerProps> = ({ state, setState }) => {
     };
     setState(prev => ({ ...prev, projects: [...prev.projects, newProject] }));
     setIsModalOpen(false);
+  };
+
+  const removeProject = (id: string) => {
+    if(confirm('¿Desea eliminar esta obra? Se borrarán también los certificados y pagos asociados si la base de datos lo permite.')) {
+      if (onDelete) onDelete(id);
+    }
   };
 
   const filtered = state.projects.filter(p => 
@@ -68,7 +75,14 @@ const ProjectManager: React.FC<ProjectManagerProps> = ({ state, setState }) => {
           const progressPercent = (totalCertificated / project.budget) * 100;
 
           return (
-            <div key={project.id} className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-md transition-all group">
+            <div key={project.id} className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-md transition-all group relative">
+              <button 
+                onClick={() => removeProject(project.id)}
+                className="absolute top-6 right-6 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 z-10"
+              >
+                <Trash2 size={20} />
+              </button>
+
               <div className="flex justify-between items-start mb-4">
                 <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
                   <FileText size={20} />
@@ -79,7 +93,7 @@ const ProjectManager: React.FC<ProjectManagerProps> = ({ state, setState }) => {
                 </div>
               </div>
               
-              <h3 className="text-lg font-bold text-slate-800 mb-1 group-hover:text-blue-600 transition-colors">{project.name}</h3>
+              <h3 className="text-lg font-bold text-slate-800 mb-1 group-hover:text-blue-600 transition-colors truncate pr-8">{project.name}</h3>
               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">
                 {contractor?.name || 'Sin contratista asignado'}
               </p>
