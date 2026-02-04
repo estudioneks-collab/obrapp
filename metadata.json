@@ -1,0 +1,7 @@
+{
+  "name": "ObraApp",
+  "description": "Sistema integral de control de obra pública para gestión de expedientes, contratistas y flujo financiero.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
