@@ -8,33 +8,63 @@ import { formatCurrency } from '../App';
 
 interface ReportsProps {
   state: ConstructionState;
+  profile: any;
 }
 
-const Reports: React.FC<ReportsProps> = ({ state }) => {
-  
+const Reports: React.FC<ReportsProps> = ({ state, profile }) => {
+  const MARGIN_X = 20;
+  const PAGE_WIDTH = 210;
+  const RIGHT_MARGIN = PAGE_WIDTH - MARGIN_X;
+
+  const getHeaderElements = (doc: jsPDF) => {
+    // 1. Margen superior derecho (Leyenda dinámica)
+    const legendText = profile?.report_legend || "SISTEMA DE CONTROL DE OBRA PÚBLICA";
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text(legendText, RIGHT_MARGIN, 15, { align: 'right' });
+
+    // 2. Encabezado Izquierdo (Logo dinámico)
+    if (profile?.report_logo) {
+      try {
+        doc.addImage(profile.report_logo, 'PNG', MARGIN_X, 10, 15, 15);
+      } catch (e) {
+        doc.rect(MARGIN_X, 10, 15, 15);
+      }
+    } else {
+      // Placeholder si no hay logo
+      doc.setFillColor(240, 240, 240);
+      doc.rect(MARGIN_X, 10, 15, 15, 'F');
+      doc.setTextColor(180, 180, 180);
+      doc.setFontSize(6);
+      doc.text("LOGO", MARGIN_X + 4, 18);
+    }
+  };
+
   const generateGeneralPDF = () => {
     const doc = new jsPDF();
     const now = new Date().toLocaleDateString('es-AR');
     
-    // Configuración de estilo
-    const primaryColor = [59, 130, 246]; // Blue 600
-    
-    // Header
+    getHeaderElements(doc);
+
+    // 3. Header Background
+    const primaryColor = [59, 130, 246];
     doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-    doc.rect(0, 0, 210, 40, 'F');
+    doc.rect(0, 35, PAGE_WIDTH, 35, 'F');
+    
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(22);
     doc.setFont('helvetica', 'bold');
-    doc.text("REPORTES GENERALES DE OBRA", 14, 25);
+    doc.text("REPORTES GENERALES DE OBRA", MARGIN_X, 55);
     
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Fecha de emisión: ${now} | ObraApp v2.5`, 14, 33);
+    doc.text(`Fecha de emisión: ${now} | Usuario: ${profile?.full_name || 'N/A'}`, MARGIN_X, 63);
 
     // Resumen Ejecutivo
     doc.setTextColor(44, 62, 80);
     doc.setFontSize(16);
-    doc.text("Resumen Ejecutivo de Cartera", 14, 55);
+    doc.setFont('helvetica', 'bold');
+    doc.text("Resumen Ejecutivo de Cartera", MARGIN_X, 85);
     
     const totalBudget = state.projects.reduce((acc, p) => acc + p.budget, 0);
     const totalCert = state.certificates.reduce((acc, c) => acc + c.financialAmount, 0);
@@ -43,7 +73,8 @@ const Reports: React.FC<ReportsProps> = ({ state }) => {
     const totalDebt = (totalCert - totalAmort) - totalPaid;
 
     autoTable(doc, {
-      startY: 60,
+      startY: 92,
+      margin: { left: MARGIN_X, right: MARGIN_X },
       head: [['Concepto', 'Monto Total ($)']],
       body: [
         ['Presupuesto Total Contratado', `$ ${formatCurrency(totalBudget)}`],
@@ -55,9 +86,9 @@ const Reports: React.FC<ReportsProps> = ({ state }) => {
       headStyles: { fillColor: [71, 85, 105] },
     });
 
-    // Listado de Obras
-    const lastY = (doc as any).lastAutoTable.finalY || 100;
-    doc.text("Detalle por Proyecto", 14, lastY + 15);
+    const lastY = (doc as any).lastAutoTable.finalY || 130;
+    doc.setFontSize(16);
+    doc.text("Detalle por Proyecto", MARGIN_X, lastY + 20);
     
     const projectsTable = state.projects.map(p => {
       const contractor = state.contractors.find(c => c.id === p.contractorId)?.name || 'N/A';
@@ -65,7 +96,8 @@ const Reports: React.FC<ReportsProps> = ({ state }) => {
     });
 
     autoTable(doc, {
-      startY: lastY + 20,
+      startY: lastY + 25,
+      margin: { left: MARGIN_X, right: MARGIN_X },
       head: [['Expediente', 'Obra', 'Contratista', 'Presupuesto']],
       body: projectsTable,
       theme: 'grid',
@@ -83,20 +115,28 @@ const Reports: React.FC<ReportsProps> = ({ state }) => {
     const certs = state.certificates.filter(c => c.projectId === project.id);
     const payments = state.payments.filter(p => p.projectId === project.id);
 
-    // Header
+    getHeaderElements(doc);
+
+    // Header Background
     doc.setFillColor(30, 41, 59); // Slate 800
-    doc.rect(0, 0, 210, 45, 'F');
+    doc.rect(0, 35, PAGE_WIDTH, 45, 'F');
+    
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(18);
-    doc.text(project.name, 14, 20);
+    doc.setFont('helvetica', 'bold');
+    const projectName = project.name.length > 50 ? project.name.substring(0, 47) + "..." : project.name;
+    doc.text(projectName, MARGIN_X, 52);
+    
     doc.setFontSize(10);
-    doc.text(`EXPEDIENTE: ${project.fileNumber} | CONTRATISTA: ${contractor?.name || 'S/D'}`, 14, 30);
-    doc.text(`Fecha de Reporte: ${now}`, 14, 36);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`EXPEDIENTE: ${project.fileNumber}`, MARGIN_X, 62);
+    doc.text(`CONTRATISTA: ${contractor?.name || 'S/D'}`, MARGIN_X, 68);
+    doc.text(`Fecha de Reporte: ${now}`, MARGIN_X, 74);
 
-    // Datos de la Obra
     doc.setTextColor(44, 62, 80);
     doc.setFontSize(14);
-    doc.text("Estado de Situación Financiera", 14, 60);
+    doc.setFont('helvetica', 'bold');
+    doc.text("Estado de Situación Financiera", MARGIN_X, 95);
 
     const totalCert = certs.reduce((acc, c) => acc + c.financialAmount, 0);
     const totalAmort = certs.reduce((acc, c) => acc + c.advanceAmortization, 0);
@@ -104,7 +144,8 @@ const Reports: React.FC<ReportsProps> = ({ state }) => {
     const debt = (totalCert - totalAmort) - totalPaid;
 
     autoTable(doc, {
-      startY: 65,
+      startY: 100,
+      margin: { left: MARGIN_X, right: MARGIN_X },
       body: [
         ['Presupuesto Original', `$ ${formatCurrency(project.budget)}`],
         ['Anticipo Otorgado', `$ ${formatCurrency(project.advanceAmount)}`],
@@ -118,13 +159,14 @@ const Reports: React.FC<ReportsProps> = ({ state }) => {
       columnStyles: { 0: { fontStyle: 'bold' }, 1: { halign: 'right' } }
     });
 
-    // Certificados
-    let lastY = (doc as any).lastAutoTable.finalY || 100;
+    let lastY = (doc as any).lastAutoTable.finalY || 140;
     doc.setFontSize(14);
-    doc.text("Historial de Certificaciones", 14, lastY + 15);
+    doc.setFont('helvetica', 'bold');
+    doc.text("Historial de Certificaciones", MARGIN_X, lastY + 20);
     
     autoTable(doc, {
-      startY: lastY + 20,
+      startY: lastY + 25,
+      margin: { left: MARGIN_X, right: MARGIN_X },
       head: [['Periodo', 'Avance %', 'Bruto', 'Amortización', 'Neto']],
       body: certs.map(c => [
         c.period, 
@@ -138,14 +180,15 @@ const Reports: React.FC<ReportsProps> = ({ state }) => {
       styles: { fontSize: 8 },
     });
 
-    // Pagos
     if (payments.length > 0) {
-      lastY = (doc as any).lastAutoTable.finalY || 150;
+      lastY = (doc as any).lastAutoTable.finalY || 180;
       doc.setFontSize(14);
-      doc.text("Registro de Pagos Efectuados", 14, lastY + 15);
+      doc.setFont('helvetica', 'bold');
+      doc.text("Registro de Pagos Efectuados", MARGIN_X, lastY + 20);
       
       autoTable(doc, {
-        startY: lastY + 20,
+        startY: lastY + 25,
+        margin: { left: MARGIN_X, right: MARGIN_X },
         head: [['Fecha', 'Referencia', 'Monto Pagado']],
         body: payments.map(p => [p.date, p.reference, `$ ${formatCurrency(p.amount)}`]),
         theme: 'striped',

@@ -9,13 +9,18 @@ import autoTable from 'jspdf-autotable';
 interface ProjectManagerProps {
   state: ConstructionState;
   setState: React.Dispatch<React.SetStateAction<ConstructionState>>;
+  profile: any;
   onDelete?: (id: string) => void;
 }
 
-const ProjectManager: React.FC<ProjectManagerProps> = ({ state, setState, onDelete }) => {
+const ProjectManager: React.FC<ProjectManagerProps> = ({ state, setState, profile, onDelete }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+
+  const MARGIN_X = 20;
+  const PAGE_WIDTH = 210;
+  const RIGHT_MARGIN = PAGE_WIDTH - MARGIN_X;
 
   const handleOpenModal = (project: Project | null = null) => {
     setSelectedProject(project);
@@ -43,7 +48,6 @@ const ProjectManager: React.FC<ProjectManagerProps> = ({ state, setState, onDele
     };
 
     if (selectedProject) {
-      // Modo Edición
       setState(prev => ({
         ...prev,
         projects: prev.projects.map(p => 
@@ -51,7 +55,6 @@ const ProjectManager: React.FC<ProjectManagerProps> = ({ state, setState, onDele
         )
       }));
     } else {
-      // Modo Creación
       const newProject: Project = {
         id: Math.random().toString(36).substr(2, 9),
         ...projectData
@@ -62,46 +65,73 @@ const ProjectManager: React.FC<ProjectManagerProps> = ({ state, setState, onDele
     handleCloseModal();
   };
 
-  const removeProject = (id: string) => {
-    if(confirm('¿Desea eliminar esta obra? Se borrarán también los certificados y pagos asociados si la base de datos lo permite.')) {
-      if (onDelete) onDelete(id);
-    }
-  };
-
-  // Función corregida para descarga rápida desde la tarjeta
   const generateProjectPDF = (project: Project) => {
     const doc = new jsPDF();
     const now = new Date().toLocaleDateString('es-AR');
+    const contractor = state.contractors.find(c => c.id === project.contractorId);
     const certs = state.certificates.filter(c => c.projectId === project.id);
     const payments = state.payments.filter(p => p.projectId === project.id);
 
-    // Header simple para descarga rápida
-    doc.setFillColor(59, 130, 246);
-    doc.rect(0, 0, 210, 30, 'F');
+    // Leyenda Dinámica
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text(profile?.report_legend || "SISTEMA DE CONTROL DE OBRA PÚBLICA", RIGHT_MARGIN, 15, { align: 'right' });
+
+    // Logo Dinámico
+    if (profile?.report_logo) {
+      try {
+        doc.addImage(profile.report_logo, 'PNG', MARGIN_X, 10, 15, 15);
+      } catch (e) {
+        doc.rect(MARGIN_X, 10, 15, 15);
+      }
+    } else {
+      doc.rect(MARGIN_X, 10, 15, 15);
+    }
+
+    // Header Background
+    doc.setFillColor(30, 41, 59); // Slate 800
+    doc.rect(0, 35, PAGE_WIDTH, 45, 'F');
+    
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(16);
-    doc.text(project.name, 14, 15);
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    const projectName = project.name.length > 50 ? project.name.substring(0, 47) + "..." : project.name;
+    doc.text(projectName, MARGIN_X, 52);
+    
     doc.setFontSize(10);
-    doc.text(`EXP: ${project.fileNumber} | Fecha: ${now}`, 14, 23);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`EXPEDIENTE: ${project.fileNumber}`, MARGIN_X, 62);
+    doc.text(`CONTRATISTA: ${contractor?.name || 'S/D'}`, MARGIN_X, 68);
+    doc.text(`Fecha de Reporte: ${now}`, MARGIN_X, 74);
 
     const totalCert = certs.reduce((acc, c) => acc + c.financialAmount, 0);
     const totalAmort = certs.reduce((acc, c) => acc + c.advanceAmortization, 0);
     const totalPaid = payments.reduce((acc, p) => acc + p.amount, 0);
+    const debt = (totalCert - totalAmort) - totalPaid;
 
-    doc.setTextColor(44, 62, 80);
-    doc.text("Estado de Cuenta", 14, 45);
     autoTable(doc, {
-      startY: 50,
+      startY: 95,
+      margin: { left: MARGIN_X, right: MARGIN_X },
       body: [
-        ['Presupuesto Total', `$ ${formatCurrency(project.budget)}`],
-        ['Certificado Acumulado', `$ ${formatCurrency(totalCert)}`],
-        ['Pagado a la Fecha', `$ ${formatCurrency(totalPaid)}`],
-        ['Deuda Pendiente', `$ ${formatCurrency((totalCert - totalAmort) - totalPaid)}`]
+        ['Presupuesto Original', `$ ${formatCurrency(project.budget)}`],
+        ['Anticipo Otorgado', `$ ${formatCurrency(project.advanceAmount)}`],
+        ['Monto Certificado (Bruto)', `$ ${formatCurrency(totalCert)}`],
+        ['Amortización de Anticipo', `-$ ${formatCurrency(totalAmort)}`],
+        ['Neto Pagado a la Fecha', `$ ${formatCurrency(totalPaid)}`],
+        ['DEUDA PENDIENTE', `$ ${formatCurrency(debt)}`]
       ],
-      theme: 'plain'
+      theme: 'plain',
+      styles: { fontSize: 10, cellPadding: 2 },
+      columnStyles: { 0: { fontStyle: 'bold' }, 1: { halign: 'right' } }
     });
 
-    doc.save(`Ficha_${project.fileNumber.replace(/\//g, '_')}.pdf`);
+    doc.save(`Ficha_Obra_${project.fileNumber.replace(/\//g, '_')}.pdf`);
+  };
+
+  const removeProject = (id: string) => {
+    if(confirm('¿Desea eliminar esta obra? Se borrarán también los certificados y pagos asociados.')) {
+      if (onDelete) onDelete(id);
+    }
   };
 
   const filtered = state.projects.filter(p => 
@@ -141,7 +171,7 @@ const ProjectManager: React.FC<ProjectManagerProps> = ({ state, setState, onDele
           const totalCertificated = state.certificates
             .filter(c => c.projectId === project.id)
             .reduce((acc, curr) => acc + curr.financialAmount, 0);
-          const progressPercent = (totalCertificated / project.budget) * 100;
+          const progressPercent = project.budget > 0 ? (totalCertificated / project.budget) * 100 : 0;
 
           return (
             <div key={project.id} className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-md transition-all group relative">
@@ -182,12 +212,6 @@ const ProjectManager: React.FC<ProjectManagerProps> = ({ state, setState, onDele
                   <span className="text-slate-400 uppercase">Presupuesto</span>
                   <span className="text-slate-700 font-black">${formatCurrency(project.budget)}</span>
                 </div>
-
-                <div className="flex justify-between text-xs font-bold">
-                  <span className="text-slate-400 uppercase">Anticipo</span>
-                  <span className="text-blue-500 font-bold">${formatCurrency(project.advanceAmount)} ({project.advanceRecoveryRate.toLocaleString('es-AR')}%)</span>
-                </div>
-                
                 <div>
                   <div className="flex justify-between text-xs font-bold mb-1.5">
                     <span className="text-slate-400 uppercase">Avance Financiero</span>
@@ -197,7 +221,6 @@ const ProjectManager: React.FC<ProjectManagerProps> = ({ state, setState, onDele
                     <div className="bg-blue-600 h-full transition-all duration-500" style={{width: `${progressPercent}%`}} />
                   </div>
                 </div>
-
                 <button 
                   onClick={() => handleOpenModal(project)}
                   className="w-full flex items-center justify-center gap-2 py-3 bg-slate-50 text-slate-600 rounded-xl font-bold text-xs hover:bg-blue-600 hover:text-white transition-all"

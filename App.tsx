@@ -17,7 +17,7 @@ import {
   User as UserIcon,
   FileText
 } from 'lucide-react';
-import { createClient, User } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 import { ConstructionState, ViewType, Contractor, Project, Certificate, Payment } from './types';
 import Dashboard from './components/Dashboard';
 import ProjectManager from './components/ProjectManager';
@@ -33,7 +33,6 @@ const SUPABASE_URL = 'https://jlczllsgnpitgvkdxqnc.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpsY3psbHNnbnBpdGd2a2R4cW5jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMDY5MTgsImV4cCI6MjA4NTc4MjkxOH0.j7kjimXlXqXizGeVoYFX6upJO0JKTbILdp3lETgClYs';
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Utility para formatear números con coma y 2 decimales
 export const formatCurrency = (amount: number) => {
   return amount.toLocaleString('es-AR', {
     minimumFractionDigits: 2,
@@ -236,8 +235,8 @@ const App: React.FC = () => {
                  <p className="text-xs font-black text-slate-800 leading-none">{profile?.full_name || 'Cargando...'}</p>
                  <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mt-1">{profile?.position || 'Usuario'}</p>
                </div>
-               <div className="w-9 h-9 bg-slate-900 text-white rounded-xl flex items-center justify-center font-bold text-xs shadow-lg">
-                 {profile?.full_name?.charAt(0) || 'U'}
+               <div className="w-9 h-9 bg-slate-900 text-white rounded-xl flex items-center justify-center font-bold text-xs shadow-lg overflow-hidden">
+                 {profile?.report_logo ? <img src={profile.report_logo} className="w-full h-full object-cover" /> : profile?.full_name?.charAt(0) || 'U'}
                </div>
              </div>
 
@@ -254,13 +253,13 @@ const App: React.FC = () => {
 
         <section className="flex-1 overflow-y-auto p-8 bg-[#f8fafc]">
           {activeView === 'dashboard' && <Dashboard state={state} />}
-          {activeView === 'projects' && <ProjectManager state={state} setState={setState} onDelete={(id) => handleDelete('projects', id)} />}
+          {activeView === 'projects' && <ProjectManager state={state} setState={setState} profile={profile} onDelete={(id) => handleDelete('projects', id)} />}
           {activeView === 'contractors' && <ContractorManager state={state} setState={setState} onDelete={(id) => handleDelete('contractors', id)} />}
           {activeView === 'payments' && <FinancialTracking state={state} setState={setState} onDelete={(type, id) => handleDelete(type as any, id)} />}
-          {activeView === 'reports' && <Reports state={state} />}
+          {activeView === 'reports' && <Reports state={state} profile={profile} />}
           {activeView === 'summary' && <NecessaryPayments state={state} />}
           {activeView === 'ai' && <AIAssistant state={state} />}
-          {activeView === 'settings' && <BackupSettings state={state} setState={setState} />}
+          {activeView === 'settings' && <BackupSettings state={state} setState={setState} profile={profile} setProfile={setProfile} />}
         </section>
       </main>
     </div>
